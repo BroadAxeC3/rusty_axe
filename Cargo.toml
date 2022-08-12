@@ -1,0 +1,15 @@
+[package]
+name = "rusty-axe"
+version = "0.1.0"
+edition = "2021"
+
+[profile.release]
+strip = true
+opt-level = "z"
+
+[dependencies]
+aws-config = "0.46.0"
+aws-sdk-cloudwatchlogs = "0.16.0"
+aws-sdk-config = "0.16.0"
+clap = { version = "3.1.6", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
