@@ -4,7 +4,6 @@ use aws_sdk_cloudwatchlogs::model::InputLogEvent;
 use aws_sdk_cloudwatchlogs::{Client as CWL_Client, Error};
 
 use clap::Parser;
-use chrono;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Seek};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -71,7 +70,7 @@ async fn get_events(path: String, head: usize, tail: usize) -> Result<Vec<InputL
         let mut event = InputLogEvent::builder().build();
 
         // CloudWatch Logs doesn't like blank lines
-        if line.len() == 0 {
+        if line.is_empty() {
             line = String::from(" ");
         }
 
@@ -161,7 +160,7 @@ async fn send_logs(group: String, events: Vec<InputLogEvent>) -> Result<(), Erro
 
     match resp.rejected_log_events_info {
         Some(e) => eprintln!("Some logs were rejected: {:#?}", e),
-        None => println!(""),
+        None => (),
     }
 
     println!("RESP: {:?}", next_sequence);
