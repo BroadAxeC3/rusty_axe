@@ -1,8 +1,10 @@
 use aws_config::meta::region::RegionProviderChain;
+use aws_config::imds::client::{Client as IMDS_Client};
 use aws_sdk_cloudwatchlogs::model::InputLogEvent;
-use aws_sdk_cloudwatchlogs::{Client, Error};
+use aws_sdk_cloudwatchlogs::{Client as CWL_Client, Error};
 
 use clap::Parser;
+use chrono;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Seek};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -108,17 +110,25 @@ async fn send_logs(group: String, events: Vec<InputLogEvent>) -> Result<(), Erro
     // Prepare AWS configs...
     let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
     let config = aws_config::from_env().region(region_provider).load().await;
-    // let instance_id = aws_config::from_env()
-    let instance_id = "i-0000000000";
-    let timestamp: i64 = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_micros().try_into().unwrap();
-    // let log_stream_name = format!("{}-{:?}", instance_id, timestamp);
-    let log_stream_name = format!("{}", instance_id);
+    let cwlogs = CWL_Client::new(&config);
+    let imds = IMDS_Client::builder().build().await.expect("valid client");
+
+    // let timestamp: i64 = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_micros().try_into().unwrap();
+    let timestamp = chrono::offset::Utc::now().format("%F_%H-%M-%S-%f").to_string();
+    let mut instance_id = String::from("i-00000000000000000");
+    match imds
+        .get("/latest/meta-data/instance-id")
+        .await
+        {
+            Ok(result) => instance_id = result,
+            Err(e) => eprintln!("Couldn't retrieve instance_id: {}", e),
+        }
+    let log_stream_name = format!("{}-{}", instance_id, timestamp);
 
     // In order to post to a log stream you have to have a sequence number (except
     // for the fisrt time).  So, since we don't memoize the sequence id from previous runs,
     // we have to create a new log stream every time we process a file.
-    let client = Client::new(&config);
-    match client
+    match cwlogs
         .create_log_stream()
         .log_group_name(&group)
         .log_stream_name(&log_stream_name)
@@ -135,7 +145,7 @@ async fn send_logs(group: String, events: Vec<InputLogEvent>) -> Result<(), Erro
     }
 
 
-    let resp = client
+    let resp = cwlogs
         .put_log_events()
         .log_group_name(&group)
         .log_stream_name(&log_stream_name)
