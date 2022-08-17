@@ -224,10 +224,12 @@ mod tests {
     #[tokio::test]
     async fn test_get_last_line() {
         let mut events = Vec::new();
-        events.push(InputLogEvent::builder()
-            .timestamp(0)
-            .message("massa massa. Vitae proin sagittis nisl rhoncus mattis rhoncus urna.")
-            .build());
+        events.push(
+            InputLogEvent::builder()
+                .timestamp(0)
+                .message("massa massa. Vitae proin sagittis nisl rhoncus mattis rhoncus urna.")
+                .build(),
+        );
         let ret = get_events("tests/fixtures/lorem-ipsum-5.txt".to_string(), 0, 1)
             .await
             .unwrap();
@@ -255,10 +257,11 @@ mod tests {
             );
         }
 
-        let ret = get_events("tests/fixtures/lorem-ipsum-5.txt".to_string(), 0, 5).await.unwrap();
+        let ret = get_events("tests/fixtures/lorem-ipsum-5.txt".to_string(), 0, 5)
+            .await
+            .unwrap();
         assert_eq!(events, reset_timestamp(ret));
     }
-
 
     #[tokio::test]
     async fn test_get_first_and_last_5_lines() {
@@ -286,10 +289,11 @@ mod tests {
             );
         }
 
-        let ret = get_events("tests/fixtures/lorem-ipsum-5.txt".to_string(), 5, 5).await.unwrap();
+        let ret = get_events("tests/fixtures/lorem-ipsum-5.txt".to_string(), 5, 5)
+            .await
+            .unwrap();
         assert_eq!(events, reset_timestamp(ret));
     }
-
 
     /// Clean up InputLogEvents by reseting their "timestamp" to 0
     ///
