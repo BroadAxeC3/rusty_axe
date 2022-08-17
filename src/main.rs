@@ -1,5 +1,5 @@
+use aws_config::imds::client::Client as IMDS_Client;
 use aws_config::meta::region::RegionProviderChain;
-use aws_config::imds::client::{Client as IMDS_Client};
 use aws_sdk_cloudwatchlogs::model::InputLogEvent;
 use aws_sdk_cloudwatchlogs::{Client as CWL_Client, Error};
 
@@ -44,7 +44,14 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-
+/// Create a vector of InputLogEvents from an input file
+///
+/// # Arguments
+///
+/// * `path` - An input file to process
+/// * `head` - The number of lines to read from the beginning of the file
+/// * `tail` - The number of lines to read from the end of the file
+///
 async fn get_events(path: String, head: usize, tail: usize) -> Result<Vec<InputLogEvent>, Error> {
     println!("Reading {:?}...", path);
 
@@ -113,15 +120,14 @@ async fn send_logs(group: String, events: Vec<InputLogEvent>) -> Result<(), Erro
     let imds = IMDS_Client::builder().build().await.expect("valid client");
 
     // let timestamp: i64 = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_micros().try_into().unwrap();
-    let timestamp = chrono::offset::Utc::now().format("%F_%H-%M-%S-%f").to_string();
+    let timestamp = chrono::offset::Utc::now()
+        .format("%F_%H-%M-%S-%f")
+        .to_string();
     let mut instance_id = String::from("i-00000000000000000");
-    match imds
-        .get("/latest/meta-data/instance-id")
-        .await
-        {
-            Ok(result) => instance_id = result,
-            Err(e) => eprintln!("Couldn't retrieve instance_id: {}", e),
-        }
+    match imds.get("/latest/meta-data/instance-id").await {
+        Ok(result) => instance_id = result,
+        Err(e) => eprintln!("Couldn't retrieve instance_id: {}", e),
+    }
     let log_stream_name = format!("{}-{}", instance_id, timestamp);
 
     // In order to post to a log stream you have to have a sequence number (except
@@ -135,14 +141,15 @@ async fn send_logs(group: String, events: Vec<InputLogEvent>) -> Result<(), Erro
         .await
     {
         Ok(_) => println!("Created new log stream: {}", &log_stream_name),
-        Err(aws_sdk_cloudwatchlogs::types::SdkError::ServiceError { err, .. }) if err.is_resource_already_exists_exception() => {
+        Err(aws_sdk_cloudwatchlogs::types::SdkError::ServiceError { err, .. })
+            if err.is_resource_already_exists_exception() =>
+        {
             println!("Log stream already exists");
         }
         Err(e) => {
             panic!("Error creating log stream: {}", e)
         }
     }
-
 
     let resp = cwlogs
         .put_log_events()
@@ -166,4 +173,133 @@ async fn send_logs(group: String, events: Vec<InputLogEvent>) -> Result<(), Erro
     println!("RESP: {:?}", next_sequence);
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_get_first_line() {
+        let mut events = Vec::new();
+
+        events.push(InputLogEvent::builder()
+            .timestamp(0)
+            .message(
+                "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor",
+            )
+            .build());
+        let ret = get_events("tests/fixtures/lorem-ipsum-5.txt".to_string(), 1, 0)
+            .await
+            .unwrap();
+        assert_eq!(events, reset_timestamp(ret));
+    }
+
+    #[tokio::test]
+    async fn test_get_first_5_lines() {
+        let mut events = Vec::new();
+
+        let message = [
+            "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor",
+            "incididunt ut labore et dolore magna aliqua. Morbi tempus iaculis urna id",
+            "volutpat. Neque viverra justo nec ultrices dui sapien eget. Cras semper auctor",
+            "neque vitae. Nam aliquam sem et tortor consequat id. Sit amet cursus sit amet",
+            "dictum sit amet justo. Lobortis elementum nibh tellus molestie nunc non. Nam",
+        ];
+
+        for n in 0..message.len() {
+            events.push(
+                InputLogEvent::builder()
+                    .timestamp(0)
+                    .message(message[n])
+                    .build(),
+            );
+        }
+        let ret = get_events("tests/fixtures/lorem-ipsum-5.txt".to_string(), 5, 0)
+            .await
+            .unwrap();
+        assert_eq!(events, reset_timestamp(ret));
+    }
+
+    #[tokio::test]
+    async fn test_get_last_line() {
+        let mut events = Vec::new();
+        events.push(InputLogEvent::builder()
+            .timestamp(0)
+            .message("massa massa. Vitae proin sagittis nisl rhoncus mattis rhoncus urna.")
+            .build());
+        let ret = get_events("tests/fixtures/lorem-ipsum-5.txt".to_string(), 0, 1)
+            .await
+            .unwrap();
+        assert_eq!(events, reset_timestamp(ret));
+    }
+
+    #[tokio::test]
+    async fn test_get_last_5_lines() {
+        let mut events = Vec::new();
+
+        let message = [
+            "egestas integer eget aliquet nibh. Porttitor rhoncus dolor purus non. Fermentum",
+            "dui faucibus in ornare quam viverra. Lectus magna fringilla urna porttitor",
+            "rhoncus dolor purus. Varius duis at consectetur lorem donec. Urna duis",
+            "convallis convallis tellus id. Egestas sed tempus urna et pharetra pharetra",
+            "massa massa. Vitae proin sagittis nisl rhoncus mattis rhoncus urna.",
+        ];
+
+        for n in 0..message.len() {
+            events.push(
+                InputLogEvent::builder()
+                    .timestamp(0)
+                    .message(message[n])
+                    .build(),
+            );
+        }
+
+        let ret = get_events("tests/fixtures/lorem-ipsum-5.txt".to_string(), 0, 5).await.unwrap();
+        assert_eq!(events, reset_timestamp(ret));
+    }
+
+
+    #[tokio::test]
+    async fn test_get_first_and_last_5_lines() {
+        let mut events = Vec::new();
+
+        let message = [
+            "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor",
+            "incididunt ut labore et dolore magna aliqua. Morbi tempus iaculis urna id",
+            "volutpat. Neque viverra justo nec ultrices dui sapien eget. Cras semper auctor",
+            "neque vitae. Nam aliquam sem et tortor consequat id. Sit amet cursus sit amet",
+            "dictum sit amet justo. Lobortis elementum nibh tellus molestie nunc non. Nam",
+            "egestas integer eget aliquet nibh. Porttitor rhoncus dolor purus non. Fermentum",
+            "dui faucibus in ornare quam viverra. Lectus magna fringilla urna porttitor",
+            "rhoncus dolor purus. Varius duis at consectetur lorem donec. Urna duis",
+            "convallis convallis tellus id. Egestas sed tempus urna et pharetra pharetra",
+            "massa massa. Vitae proin sagittis nisl rhoncus mattis rhoncus urna.",
+        ];
+
+        for n in 0..message.len() {
+            events.push(
+                InputLogEvent::builder()
+                    .timestamp(0)
+                    .message(message[n])
+                    .build(),
+            );
+        }
+
+        let ret = get_events("tests/fixtures/lorem-ipsum-5.txt".to_string(), 5, 5).await.unwrap();
+        assert_eq!(events, reset_timestamp(ret));
+    }
+
+
+    /// Clean up InputLogEvents by reseting their "timestamp" to 0
+    ///
+    /// This allows us to compare events more easily.
+    fn reset_timestamp(mut events: Vec<InputLogEvent>) -> Vec<InputLogEvent> {
+        for event in events.iter_mut() {
+            event.timestamp = Some(0);
+            // println!("{:?}", event);
+        }
+
+        return events;
+    }
 }
