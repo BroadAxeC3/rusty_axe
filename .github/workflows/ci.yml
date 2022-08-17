@@ -1,6 +1,12 @@
-on: [push, pull_request]
-
 name: Continuous integration
+
+# Execute this action when pushing to any branch except "master"
+# The "master" branch has it's own action
+on:
+  push:
+    branches:
+      - '*'
+      - '!master'
 
 jobs:
   check:
