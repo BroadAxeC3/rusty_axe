@@ -1,3 +1,5 @@
+[![Compile and Release](https://github.com/BroadAxeC3/rusty_axe/actions/workflows/compile.yml/badge.svg)](https://github.com/BroadAxeC3/rusty_axe/actions/workflows/compile.yml)
+
 ## Introduction
 
 Some times you need to keep a little bit of log data for debugging purposes
