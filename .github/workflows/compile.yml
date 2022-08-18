@@ -2,11 +2,9 @@ name: Compile and Release
 
 # Execute this action when merging to the "master" branch
 on:
-  push:
+  pull_request:
     branches: [master]
-  # pull_request:
-  #   branches: [master]
-  #   types: [closed]
+    types: [closed]
 
 env:
   CARGO_TERM_COLOR: always
