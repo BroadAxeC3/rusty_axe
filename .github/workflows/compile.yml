@@ -1,10 +1,10 @@
 name: Compile and Release
 
 # Execute this action when merging to the "master" branch
-on: [push]
-  # pull_request:
-  #   branches: [master]
-  #   types: [closed]
+on:
+  pull_request:
+    branches: [master]
+    types: [closed]
 
 env:
   CARGO_TERM_COLOR: always
@@ -19,11 +19,11 @@ jobs:
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             use_cross: true
-            oname: "-aarch64"
+            oname: "aarch64"
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             use_cross: false
-            oname: "-linux"
+            oname: "x86"
 
     steps:
       - name: Checkout
